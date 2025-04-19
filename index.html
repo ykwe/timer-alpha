@@ -287,17 +287,46 @@
             localStorage.setItem('theme', newTheme);
         });
 
-        // Service Workerの登録
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(registration => {
-                        console.log('Service Worker registered:', registration);
-                    })
-                    .catch(error => {
-                        console.log('Service Worker registration failed:', error);
-                    });
-            });
+        // 通知許可の確認と要求
+        let notificationPermission = false;
+
+        async function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                console.log('このブラウザは通知をサポートしていません');
+                return;
+            }
+
+            try {
+                const permission = await Notification.requestPermission();
+                notificationPermission = permission === 'granted';
+                
+                // 許可された場合、設定を保存
+                if (notificationPermission) {
+                    localStorage.setItem('notificationPermission', 'granted');
+                }
+            } catch (error) {
+                console.log('通知の許可取得に失敗しました:', error);
+            }
+        }
+
+        // 通知を送信
+        function sendNotification() {
+            if (!notificationPermission) return;
+
+            try {
+                const options = {
+                    body: 'タイマーが終了しました',
+                    icon: 'icon-192.png',
+                    badge: 'icon-192.png',
+                    vibrate: [200, 100, 200],
+                    tag: 'timer-notification',
+                    renotify: true
+                };
+
+                new Notification('タイマー終了', options);
+            } catch (error) {
+                console.log('通知の送信に失敗しました:', error);
+            }
         }
 
         let timeLeft = 0;
@@ -375,6 +404,7 @@
             pauseTimer();
             playNotificationSound();
             showNotification();
+            sendNotification();  // 通知を送信
             vibrate();
         }
 
@@ -423,6 +453,27 @@
         document.body.style.height = window.innerHeight + 'px';
         updateDisplay();
         preventSleep();
+
+        // 初期化時に通知の許可を確認
+        window.addEventListener('load', async () => {
+            // Service Workerの登録（既存のコード）
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.register('/service-worker.js');
+                    console.log('Service Worker registered:', registration);
+                } catch (error) {
+                    console.log('Service Worker registration failed:', error);
+                }
+            }
+
+            // 通知の許可状態を確認
+            if (Notification.permission === 'granted') {
+                notificationPermission = true;
+            } else if (Notification.permission !== 'denied') {
+                // まだ許可も拒否もされていない場合、許可を要求
+                await requestNotificationPermission();
+            }
+        });
     </script>
 </body>
 </html> 
