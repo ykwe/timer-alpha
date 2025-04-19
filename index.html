@@ -134,11 +134,24 @@
             transform: translateX(-50%);
             background-color: #fff;
             color: #2c3e50;
-            padding: 10px 20px;
+            padding: 10px 40px 10px 20px;
             border-radius: 20px;
             display: none;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             border: 2px solid #e2e8f0;
+        }
+
+        .notification .close-button {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #2c3e50;
+            padding: 5px;
         }
     </style>
 </head>
@@ -147,21 +160,24 @@
         <div class="timer-display" id="display">00:00</div>
         
         <div class="preset-buttons">
-            <button class="preset-button" data-time="10">10秒</button>
             <button class="preset-button" data-time="60">1分</button>
+            <button class="preset-button" data-time="10">10秒</button>
             <button class="preset-button" data-time="300">5分</button>
+            <button class="preset-button" data-time="30">30秒</button>
             <button class="preset-button" data-time="600">10分</button>
-            <button class="preset-button" data-time="900">15分</button>
             <button class="preset-button" data-time="1800">30分</button>
         </div>
 
         <div class="control-buttons">
             <button id="startButton" class="control-button">スタート</button>
-            <button id="resetButton" class="control-button">リセット</button>
+            <button id="resetButton" class="control-button">クリアー</button>
         </div>
     </div>
 
-    <div class="notification" id="notification">タイマー終了</div>
+    <div class="notification" id="notification">
+        タイマー終了
+        <button class="close-button" onclick="hideNotification()">❌</button>
+    </div>
 
     <script>
         // Service Workerの登録
@@ -257,9 +273,10 @@
 
         function showNotification() {
             notification.style.display = 'block';
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 3000);
+        }
+
+        function hideNotification() {
+            notification.style.display = 'none';
         }
 
         function playNotificationSound() {
