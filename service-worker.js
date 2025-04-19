@@ -1,11 +1,12 @@
 const CACHE_NAME = 'timer-cache-v1';
+const BASE_PATH = '/timer-alpha';
 const CACHE_URLS = [
-    '/',
-    '/index.html',
-    '/icon-192.png',
-    '/icon-512.png',
-    '/icon.svg',
-    '/manifest.json'
+    `${BASE_PATH}/`,
+    `${BASE_PATH}/index.html`,
+    `${BASE_PATH}/icon-192.png`,
+    `${BASE_PATH}/icon-512.png`,
+    `${BASE_PATH}/icon.svg`,
+    `${BASE_PATH}/manifest.json`
 ];
 
 // インストール時にリソースをキャッシュ
@@ -28,7 +29,7 @@ self.addEventListener('activate', event => {
                     return caches.delete(cacheName);
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });
 
@@ -42,7 +43,6 @@ self.addEventListener('fetch', event => {
                 }
                 return fetch(event.request)
                     .then(response => {
-                        // Basic runtime caching
                         if (response.status === 200) {
                             const responseClone = response.clone();
                             caches.open(CACHE_NAME).then(cache => {
@@ -52,5 +52,38 @@ self.addEventListener('fetch', event => {
                         return response;
                     });
             })
+    );
+});
+
+// 通知をクリックした時の処理
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    event.waitUntil(
+        clients.matchAll({ type: 'window' }).then(clientList => {
+            for (const client of clientList) {
+                if (client.url && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(BASE_PATH + '/');
+            }
+        })
+    );
+});
+
+// プッシュ通知の受信処理
+self.addEventListener('push', event => {
+    const options = {
+        body: event.data ? event.data.text() : 'タイマーが終了しました',
+        icon: `${BASE_PATH}/icon-192.png`,
+        badge: `${BASE_PATH}/icon-192.png`,
+        vibrate: [200, 100, 200],
+        tag: 'timer-notification',
+        renotify: true
+    };
+
+    event.waitUntil(
+        self.registration.showNotification('タイマー終了', options)
     );
 }); 
