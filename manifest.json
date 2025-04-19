@@ -2,7 +2,7 @@
     "name": "シンプルタイマー",
     "short_name": "タイマー",
     "description": "シンプルで使いやすいタイマーアプリ",
-    "start_url": "/",
+    "start_url": "/timer-alpha/",
     "display": "standalone",
     "background_color": "#f0f2f5",
     "theme_color": "#4ade80",
