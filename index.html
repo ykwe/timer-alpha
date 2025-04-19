@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -21,6 +21,24 @@
     <link rel="apple-touch-startup-image" href="icon-512.png">
 
     <style>
+        :root[data-theme="light"] {
+            --bg-color: #f0f2f5;
+            --text-color: #2c3e50;
+            --button-bg: #fff;
+            --button-border: #e2e8f0;
+            --notification-bg: #fff;
+            --timer-color: #1a365d;
+        }
+
+        :root[data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #e2e8f0;
+            --button-bg: #2d2d2d;
+            --button-border: #404040;
+            --notification-bg: #2d2d2d;
+            --timer-color: #e2e8f0;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -30,12 +48,13 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
-            background-color: #f0f2f5;
-            color: #2c3e50;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             touch-action: manipulation;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .container {
@@ -44,6 +63,43 @@
             flex-direction: column;
             padding: 20px;
             max-width: 100%;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 1000;
+            padding: 8px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--button-bg);
+            border: 2px solid var(--button-border);
+            color: var(--text-color);
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .version {
+            position: fixed;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.8rem;
+            opacity: 0.5;
+            color: var(--text-color);
         }
 
         .timer-display {
@@ -55,7 +111,7 @@
             font-weight: 200;
             margin: 20px 0;
             font-variant-numeric: tabular-nums;
-            color: #1a365d;
+            color: var(--timer-color);
         }
 
         .preset-buttons {
@@ -66,9 +122,9 @@
         }
 
         .preset-button {
-            background-color: #fff;
-            border: 2px solid #e2e8f0;
-            color: #2c3e50;
+            background-color: var(--button-bg);
+            border: 2px solid var(--button-border);
+            color: var(--text-color);
             padding: 20px;
             font-size: 1.2rem;
             border-radius: 12px;
@@ -132,8 +188,8 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: #fff;
-            color: #2c3e50;
+            background-color: var(--notification-bg);
+            color: var(--text-color);
             padding: 15px 50px 15px 25px;
             border-radius: 20px;
             display: none;
@@ -152,7 +208,7 @@
             background: none;
             border: none;
             cursor: pointer;
-            color: #2c3e50;
+            color: var(--text-color);
             padding: 8px;
             width: 24px;
             height: 24px;
@@ -187,6 +243,8 @@
     </style>
 </head>
 <body>
+    <button class="theme-toggle" id="themeToggle" aria-label="ダークモード切替">🌓</button>
+    
     <div class="container">
         <div class="timer-display" id="display">00:00</div>
         
@@ -210,7 +268,25 @@
         <button class="close-button" onclick="hideNotification()"></button>
     </div>
 
+    <div class="version">Version 1.1.0</div>
+
     <script>
+        // テーマ切り替えの処理
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        // ローカルストレージからテーマ設定を読み込む
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
         // Service Workerの登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
