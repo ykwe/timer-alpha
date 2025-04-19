@@ -11,25 +11,37 @@ const CACHE_URLS = [
 
 // インストール時にリソースをキャッシュ
 self.addEventListener('install', event => {
+    console.log('Service Worker: Installing...');
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(CACHE_URLS))
-            .then(() => self.skipWaiting())
+            .then(cache => {
+                console.log('Service Worker: Caching files');
+                return cache.addAll(CACHE_URLS);
+            })
+            .then(() => {
+                console.log('Service Worker: Installation complete');
+                return self.skipWaiting();
+            })
     );
 });
 
 // アクティベート時に古いキャッシュを削除
 self.addEventListener('activate', event => {
+    console.log('Service Worker: Activating...');
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.filter(cacheName => {
                     return cacheName !== CACHE_NAME;
                 }).map(cacheName => {
+                    console.log('Service Worker: Deleting old cache:', cacheName);
                     return caches.delete(cacheName);
                 })
             );
-        }).then(() => self.clients.claim())
+        }).then(() => {
+            console.log('Service Worker: Activation complete');
+            return self.clients.claim();
+        })
     );
 });
 
@@ -57,6 +69,7 @@ self.addEventListener('fetch', event => {
 
 // 通知をクリックした時の処理
 self.addEventListener('notificationclick', event => {
+    console.log('Service Worker: Notification clicked');
     event.notification.close();
     event.waitUntil(
         clients.matchAll({ type: 'window' }).then(clientList => {
@@ -74,16 +87,26 @@ self.addEventListener('notificationclick', event => {
 
 // プッシュ通知の受信処理
 self.addEventListener('push', event => {
+    console.log('Service Worker: Push received');
     const options = {
         body: event.data ? event.data.text() : 'タイマーが終了しました',
         icon: `${BASE_PATH}/icon-192.png`,
         badge: `${BASE_PATH}/icon-192.png`,
         vibrate: [200, 100, 200],
         tag: 'timer-notification',
-        renotify: true
+        renotify: true,
+        data: {
+            url: self.registration.scope
+        }
     };
 
     event.waitUntil(
         self.registration.showNotification('タイマー終了', options)
+            .then(() => {
+                console.log('Service Worker: Notification sent');
+            })
+            .catch(error => {
+                console.error('Service Worker: Notification error:', error);
+            })
     );
 }); 
