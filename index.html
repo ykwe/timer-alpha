@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>シンプルタイマー</title>
+
+    <!-- PWA設定 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4ade80">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="タイマー">
+    
+    <!-- アイコン設定 -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- スプラッシュスクリーン設定 -->
+    <link rel="apple-touch-startup-image" href="icon-512.png">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            background-color: #f0f2f5;
+            color: #2c3e50;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            touch-action: manipulation;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            max-width: 100%;
+        }
+
+        .timer-display {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5rem;
+            font-weight: 200;
+            margin: 20px 0;
+            font-variant-numeric: tabular-nums;
+            color: #1a365d;
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .preset-button {
+            background-color: #fff;
+            border: 2px solid #e2e8f0;
+            color: #2c3e50;
+            padding: 20px;
+            font-size: 1.2rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .preset-button:active {
+            background-color: #e2e8f0;
+            transform: scale(0.98);
+        }
+
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-button {
+            padding: 20px;
+            font-size: 1.2rem;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #startButton {
+            background-color: #4ade80;
+            color: white;
+        }
+
+        #startButton:active {
+            background-color: #22c55e;
+            transform: scale(0.98);
+        }
+
+        #resetButton {
+            background-color: #f87171;
+            color: white;
+        }
+
+        #resetButton:active {
+            background-color: #ef4444;
+            transform: scale(0.98);
+        }
+
+        #startButton.pause {
+            background-color: #fbbf24;
+        }
+
+        #startButton.pause:active {
+            background-color: #f59e0b;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #fff;
+            color: #2c3e50;
+            padding: 10px 20px;
+            border-radius: 20px;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="timer-display" id="display">00:00</div>
+        
+        <div class="preset-buttons">
+            <button class="preset-button" data-time="10">10秒</button>
+            <button class="preset-button" data-time="60">1分</button>
+            <button class="preset-button" data-time="300">5分</button>
+            <button class="preset-button" data-time="600">10分</button>
+            <button class="preset-button" data-time="900">15分</button>
+            <button class="preset-button" data-time="1800">30分</button>
+        </div>
+
+        <div class="control-buttons">
+            <button id="startButton" class="control-button">スタート</button>
+            <button id="resetButton" class="control-button">リセット</button>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">タイマー終了</div>
+
+    <script>
+        // Service Workerの登録
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+
+        let timeLeft = 0;
+        let timerId = null;
+        let isRunning = false;
+
+        const display = document.getElementById('display');
+        const startButton = document.getElementById('startButton');
+        const resetButton = document.getElementById('resetButton');
+        const notification = document.getElementById('notification');
+
+        // プリセットボタンのイベントリスナー
+        document.querySelectorAll('.preset-button').forEach(button => {
+            button.addEventListener('click', () => {
+                if (!isRunning) {
+                    // 既存の時間に加算
+                    timeLeft += parseInt(button.dataset.time);
+                    updateDisplay();
+                }
+            });
+        });
+
+        // スタート/一時停止ボタン
+        startButton.addEventListener('click', () => {
+            if (timeLeft === 0 && !isRunning) return;
+
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        });
+
+        // リセットボタン
+        resetButton.addEventListener('click', () => {
+            resetTimer();
+        });
+
+        function startTimer() {
+            isRunning = true;
+            startButton.textContent = '一時停止';
+            startButton.classList.add('pause');
+
+            timerId = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                    if (timeLeft === 0) {
+                        timerComplete();
+                    }
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            startButton.textContent = 'スタート';
+            startButton.classList.remove('pause');
+            clearInterval(timerId);
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timeLeft = 0;
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function timerComplete() {
+            pauseTimer();
+            playNotificationSound();
+            showNotification();
+            vibrate();
+        }
+
+        function showNotification() {
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        function playNotificationSound() {
+            // システム音を再生
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Fg4F9gIOFiIZzX1picoF8gX9/gn+Af4CBg4eCe2VgZnF8gIB/foB/gn+BgoKDgX1tYmZxfYGCgoGBgoOEgoGCgYKDgXllZG9+goGBgYGChISCgoKBg4KAd2NicH2CgoKCgoKDg4OCgoGCgoJ/aWBkcH6Bg4OCgoKDg4OCgoGCgYGAb2FicYCBgoODgoKDgoOCgoGBgIGBdmNfaXqAgoKDgoKCgoKCgoGAgICBf3BiYnN+gYKCgoKCgoKCgYCAgICAgHVhX2x8gIGCgoKCgoKBgYCAgICAgX9sYGV2f4GCgoKCgoKBgYCAgICAgYB5YV9vfoCBgoKCgoKBgYCAgICAgYGAa19meH+BgoKCgoKBgYCAgICAgYGBfWJea32BgoKCgoKBgYCAgICAgYGBgn5kXWZ5gYGCgoKBgYCAgICAgYGBgoJzXl9yf4GCgoKBgYCAgICAgYGBgoKDbl1hd4CBgoKBgYCAgICAgYGBgoKChnVcX3B/goKCgYGAgICAgIGBgYKCgol3W15tfoGCgoGBgICAgICBgYGCgoKBgYGBgHxgXWt/goGBgICAgICBgYGCgoKBgYGBgH5mXWd+goGBgICAgICBgYGCgoKBgYGBgIFsXWR7goGBgICAgICBgYGCgoKBgYGBgIJ0XWF2gYGBgICAgICBgYGCgoKBgYGBgIN8X11xgIGBgICAgICBgYGCgoKBgYGBgIKDZl1mc4CBgICAgICBgYGCgoKBgYGBgIKCdl1hd4CBgICAgICBgYGCgoKBgYGBgIKCfWBdanl/gICAgICBgYGCgoKBgYGBgIKCgmpbX3OAgICAgICBgYGCgoKBgYGBgIKCgntgXWx8gICAgICBgYGCgoKBgYGBgIKCgoRqXV9zgICAgICBgYGCgoKBgYGBgIKCgoN5XVxufICAgICBgYGCgoKBgYGBgIKCgoKEbVxdc4CAgICBgYGCgoKBgYGBgIKCgoKDell1fICAgICBgYGCgoKBgYGBgIKCgoKCgHhggICAgICBgYGCgoKBgYGBgIKCgoKCgoF4gICAgICBgYGCgoKBgYGBgIKCgoKCgoKCeICAgICBgYGCgoKBgYGBgIKCgoKCgoKCgniAgICBgYGCgoKBgYGBgIKCgoKCgoKCgoJ4gICBgYGCgoKBgYGBgIKCgoKCgoKCgoKCeICBgYGCgoKBgYGBgIKCgoKCgoKCgoKCgnh/gYGCgoKBgYGBgIKCgoKCgoKCgoKCgn5+gYGCgoKBgYGBgIKCgoKCgoKCgoKCgoF+gYGCgoKBgYGBgIKCgoKCgoKCgoKCgoKBfoGCgoKBgYGBgIKCgoKCgoKCgoKCgoKCgX6CgoKBgYGBgIKCgoKCgoKCgoKCgoKCgYGAgoKBgYGBgIKCgoKCgoKCgoKCgoKCgoGBgoKBgYGBgIKCgoKCgoKCgoKCgoKCgoKBgoKBgYGBgIKCgoKCgoKCgoKCgoKCgoKCgoKBgYGBgIKCgoKCgoKCgoKCgoKCgoKCgoKBgYGBgIKCgoKCgoKCgoKCgoKCgoKCgoGBgYGBgIKCgoKCgoKCgoKCgoKCgoKCgYGBgYGAgIKCgoKCgoKCgoKCgoKCgoKBgYGBgYCAgoKCgoKCgoKCgoKCgoKCgoGBgYGBgICCgoKCgoKCgoKCgoKCgoKBgYGBgYGAgIKCgoKCgoKCgoKCgoKCgYGBgYGBgICBgoKCgoKCgoKCgoKCgoGBgYGBgYCAgIGCgoKCgoKCgoKCgoKBgYGBgYGAgICBgoKCgoKCgoKCgoKCgYGBgYGBgICAgIGCgoKCgoKCgoKCgYGBgYGBgICAgICBgoKCgoKCgoKCgYGBgYGBgICAgICAgoKCgoKCgoKBgYGBgYGAgICAgICBgoKCgoKCgoGBgYGBgYCAgICAgICCgoKCgoKBgYGBgYGAgICAgICAgYKCgoKCgYGBgYGBgICAgICAgIGCgoKCgoGBgYGBgYCAgICAgICAgoKCgoKBgYGBgYGAgICAgICAgIKCgoKBgYGBgYGAgICAgICAgIKCgoKBgYGBgYGAgICAgICAgIKCgoGBgYGBgYCAgICAgICAgIGBgYGBgYGAgICAgICAgICAgYGBgYGBgICAgICAgICAgICBgYGBgYCAgICAgICAgICAgIGBgYGAgICAgICAgICAgICAgYGBgICAgICAgICAgICAgICBgYCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==');
+                audio.play();
+            } catch (e) {
+                console.log('音声再生エラー:', e);
+            }
+        }
+
+        function vibrate() {
+            // バイブレーション（対応デバイスのみ）
+            if ('vibrate' in navigator) {
+                navigator.vibrate([200, 100, 200]);
+            }
+        }
+
+        // 画面のスリープを防止
+        function preventSleep() {
+            if ('wakeLock' in navigator) {
+                try {
+                    navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.log('WakeLock APIエラー:', err);
+                }
+            }
+        }
+
+        // 画面回転を検知して表示を最適化
+        window.addEventListener('resize', () => {
+            document.body.style.height = window.innerHeight + 'px';
+        });
+
+        // 初期表示
+        document.body.style.height = window.innerHeight + 'px';
+        updateDisplay();
+        preventSleep();
+    </script>
+</body>
+</html> 
